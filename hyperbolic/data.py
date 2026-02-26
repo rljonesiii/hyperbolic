@@ -111,6 +111,100 @@ def build_negative_probability_matrix(num_nodes, node_depth, siblings, markov_bl
     return jnp.array(probs)
 
 
+def parse_networkx_graph(G):
+    """
+    Parses a general NetworkX graph (like MultiDiGraph or MultiGraph).
+    Returns basic graph structures mapped to integer indices.
+    """
+    import networkx as nx
+
+    # Map original node IDs to clean integers 0...N-1
+    node_list = list(G.nodes())
+    node_to_idx = {node: i for i, node in enumerate(node_list)}
+
+    num_nodes = len(node_list)
+
+    # Extract edges
+    edges = []
+    for u, v in G.edges():
+        edges.append((node_to_idx[u], node_to_idx[v]))
+
+    # Generalized Markov Blanket (Parents + Children + Siblings)
+    # Since arbitrary graphs might not be strictly directed trees, we approximate
+    # by taking immediate 1-hot neighbors, and then checking for shared parents via predecessors.
+    markov_blankets = {}
+
+    is_directed = G.is_directed()
+
+    for node in node_list:
+        idx = node_to_idx[node]
+        blanket = set()
+
+        # Immediate neighbors (Parents/Children in directed, adjacent in undirected)
+        if is_directed:
+            for pred in G.predecessors(node):
+                blanket.add(node_to_idx[pred])
+            for succ in G.successors(node):
+                blanket.add(node_to_idx[succ])
+        else:
+            for neighbor in G.neighbors(node):
+                blanket.add(node_to_idx[neighbor])
+
+        # "Siblings" (Nodes sharing a parent in directed graphs)
+        if is_directed:
+            for pred in G.predecessors(node):
+                for sibling in G.successors(pred):
+                    if sibling != node:
+                        blanket.add(node_to_idx[sibling])
+
+        markov_blankets[idx] = list(blanket)
+
+    return num_nodes, edges, node_to_idx, markov_blankets
+
+
+def build_generalized_negative_matrix(
+    num_nodes, edges, markov_blankets, is_directed=False
+):
+    """
+    Builds a negative probability matrix without assuming strict tree 'depth'.
+    Instead, it uses graph distance. Nodes exactly 2 hops away are considered
+    hard negatives (structural cousins) compared to 1-hop (markov blanket).
+    """
+    import networkx as nx
+
+    G_idx = nx.Graph() if not is_directed else nx.DiGraph()
+    G_idx.add_nodes_from(range(num_nodes))
+    G_idx.add_edges_from(edges)
+
+    # We want undirected paths for structural similarity distances
+    G_undir = G_idx.to_undirected()
+
+    probs = np.ones((num_nodes, num_nodes)) * 0.1
+
+    # Calculate all shortest paths up to length 2
+    # This might be slow for massive graphs in a simple loop, but is mathematically correct
+    path_lengths = dict(nx.all_pairs_shortest_path_length(G_undir, cutoff=2))
+
+    for i in range(num_nodes):
+        probs[i, i] = 0.0
+        for pos in markov_blankets[i]:
+            probs[i, pos] = 0.0
+
+        # Hard Negative: Exactly 2 hops away structurally and NOT in the markov blanket
+        if i in path_lengths:
+            for target_node, dist in path_lengths[i].items():
+                if dist == 2 and target_node not in markov_blankets[i]:
+                    probs[i, target_node] = 5.0
+
+    # Normalize probabilities
+    row_sums = np.sum(probs, axis=1, keepdims=True)
+    # Avoid division by zero for totally isolated nodes
+    row_sums[row_sums == 0] = 1.0
+    probs = probs / row_sums
+
+    return jnp.array(probs)
+
+
 def batch_sample_hard_negatives(key, target_indices, prob_matrix, num_samples=10):
     """
     Sample hard negatives using jax.random.choice based on probability matrix.

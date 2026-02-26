@@ -46,3 +46,24 @@ uv run demo.py
 ```
 
 This will output the training logs and save the final clustered embedding representation to `demo/poincare_viz_final.png`.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Author
+
+* **Robert Jones** - [rljonesiii](https://github.com/rljonesiii)
+
+## Citation
+
+If you use this library in your research, please cite:
+
+```bibtex
+@software{jones2026hyperbolic,
+  author = {Robert Jones},
+  title = {Hyperbolic Graph Neural Networks in JAX},
+  url = {https://github.com/rljonesiii/hyperbolic},
+  year = {2026},
+}
+```

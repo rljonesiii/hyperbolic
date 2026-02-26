@@ -61,7 +61,9 @@ def riemannian_adam_step(
     count = state.count + 1
 
     # 1. Project Euclidean grad to Riemannian grad on the Tangent Space
-    riemannian_grad = project_to_tangent_space(params, euclidean_grads)
+    # Convert Euclidean gradient to Minkowski gradient
+    minkowski_grads = euclidean_grads.at[..., 0].set(-euclidean_grads[..., 0])
+    riemannian_grad = project_to_tangent_space(params, minkowski_grads)
 
     # 2. Parallel Transport the old momentum to the new tangent space
     # (Since the parameters moved in the last step, from prev_params to params)

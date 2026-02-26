@@ -157,12 +157,17 @@ def apply_sparse_riemannian_adam_update(
     euclidean_grads = euclidean_grads.at[inv_idx].add(all_flat_grads)
 
     # 1. Project Euclidean grad to Riemannian grad on Tangent Space
-    riemannian_grad = project_to_tangent_space(params, euclidean_grads)
+    # To get the ambient Minkowski gradient from Euclidean gradient, we must multiply the time component by -1.
+    minkowski_grads = euclidean_grads.at[..., 0].set(-euclidean_grads[..., 0])
+    riemannian_grad = project_to_tangent_space(params, minkowski_grads)
 
     # 2. Parallel transport logic: For this sparse subset, the "prev_params" is just the current params
     # since we haven't updated them yet this step. Next time they are sliced, they will be the new params.
     # We just run standard Riemannian Adam on this slice.
     m_new = beta1 * m + (1 - beta1) * riemannian_grad
+
+    # Project momentum to the current tangent space (cheap alternative to full state parallel transport)
+    m_new = project_to_tangent_space(params, m_new)
 
     grad_norm_sq = jnp.maximum(
         minkowski_inner_product(riemannian_grad, riemannian_grad), 0.0
@@ -173,6 +178,9 @@ def apply_sparse_riemannian_adam_update(
     v_hat = v_new / (1 - beta2**count)
 
     tangent_step = -learning_rate * (m_hat / (jnp.sqrt(v_hat)[..., None] + epsilon))
+
+    # Ensure tangent_step is strictly in the tangent space before exponential map
+    tangent_step = project_to_tangent_space(params, tangent_step)
 
     new_params = lorentz_exponential_map(params, tangent_step)
 
@@ -235,9 +243,10 @@ def train_step_single_gpu(
     )
 
     # 6. Euclidean Adam for HGAT weights
-    W_new, hgat_m_W, hgat_v_W = apply_euclidean_adam_update(
-        W, grads_cpu[3], hgat_m["W"], hgat_v["W"], count
-    )
+    W_new = W
+    hgat_m_W = hgat_m["W"]
+    hgat_v_W = hgat_v["W"]
+
     a_new, hgat_m_a, hgat_v_a = apply_euclidean_adam_update(
         a, grads_cpu[4], hgat_m["a"], hgat_v["a"], count
     )

@@ -50,7 +50,7 @@ def main():
     # Initialize HGAT Weights (Standard Euclidean Initialization)
     # W is (D-1) x (D-1) since it applies to spatial dimensions of tangent space
     key, subkeyW, subkeyA = jax.random.split(key, 3)
-    W = jax.random.normal(subkeyW, (spatial_dim, spatial_dim)) * 0.1
+    W = jnp.eye(spatial_dim)
     # a is 2*(D-1)
     a = jax.random.normal(subkeyA, (2 * spatial_dim,)) * 0.1
 
@@ -59,7 +59,7 @@ def main():
     hgat_v = {"W": jnp.zeros_like(W), "a": jnp.zeros_like(a)}
 
     print("4. Training using Host-to-Device Paging Sparse Updates...")
-    num_epochs = 150
+    num_epochs = 300
     batch_size = 64
     num_negs = 10
 
