@@ -42,24 +42,44 @@ def main():
     spatial_dim = 2
     master_embs = init_hyperbolic_weights(subkey, (num_nodes, spatial_dim), stddev=1e-3)
 
+    print("   -> Generating Mock Euclidean Features (F_n=5, F_e=3)...")
+    F_n, F_e = 5, 3
+    key, k1, k2 = jax.random.split(key, 3)
+    global_node_features = jax.random.normal(k1, (num_nodes, F_n))
+
     print("3. Initializing Riemannian Adam and HGAT Weights...")
     opt_state = riemannian_adam_init(master_embs)
     m_state = opt_state.m
     v_state = opt_state.v
 
-    # Initialize HGAT Weights (Standard Euclidean Initialization)
+    # Initialize HGAT Weights
     # W is (D-1) x (D-1) since it applies to spatial dimensions of tangent space
-    key, subkeyW, subkeyA = jax.random.split(key, 3)
+    key, subkeyW, subkeyA, subkeyWM = jax.random.split(key, 4)
     W = jnp.eye(spatial_dim)
-    # a is 2*(D-1)
-    a = jax.random.normal(subkeyA, (2 * spatial_dim,)) * 0.1
 
-    hgat_params = (W, a)
-    hgat_m = {"W": jnp.zeros_like(W), "a": jnp.zeros_like(a)}
-    hgat_v = {"W": jnp.zeros_like(W), "a": jnp.zeros_like(a)}
+    # a dimension: incorporates spatial dim plus features
+    a_dim = 2 * spatial_dim + 2 * F_n + F_e
+    a = jax.random.normal(subkeyA, (a_dim,)) * 0.1
+
+    # W_message projects the concatenated [hyperbolic_msg, node_feat, edge_feat] -> ambient Lorentz space
+    D = spatial_dim + 1
+    msg_dim = D + F_n + F_e
+    W_message = jax.random.normal(subkeyWM, (msg_dim, D)) * 0.1
+
+    hgat_params = {"W": W, "a": a, "W_message": W_message}
+    hgat_m = {
+        "W": jnp.zeros_like(W),
+        "a": jnp.zeros_like(a),
+        "W_message": jnp.zeros_like(W_message),
+    }
+    hgat_v = {
+        "W": jnp.zeros_like(W),
+        "a": jnp.zeros_like(a),
+        "W_message": jnp.zeros_like(W_message),
+    }
 
     print("4. Training using Host-to-Device Paging Sparse Updates...")
-    num_epochs = 400
+    num_epochs = 500
     batch_size = 64
     num_negs = 10
 
@@ -67,6 +87,7 @@ def main():
     max_pos = max([len(b) for b in markov_blankets.values()])
     pos_padded = np.zeros((num_nodes, max_pos), dtype=np.int32)
     pos_mask = np.zeros((num_nodes, max_pos), dtype=np.float32)
+    pos_edge_padded = np.array(jax.random.normal(k2, (num_nodes, max_pos, F_e)))
 
     for i in range(num_nodes):
         b = markov_blankets[i]
@@ -114,6 +135,9 @@ def main():
                 "positives": jnp.array(batch_pos),
                 "negatives": jnp.array(batch_negs),
                 "pos_mask": jnp.array(b_pos_mask),
+                "target_features": jnp.array(global_node_features[batch_targets]),
+                "pos_features": jnp.array(global_node_features[batch_pos]),
+                "pos_edge_features": jnp.array(pos_edge_padded[batch_targets]),
             }
 
             # Step

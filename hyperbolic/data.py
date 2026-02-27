@@ -162,6 +162,103 @@ def parse_networkx_graph(G):
     return num_nodes, edges, node_to_idx, markov_blankets
 
 
+def encode_graph_features(G, node_to_idx):
+    """
+    Extracts node and edge features from a NetworkX graph.
+    Encodes categorical features as one-hot arrays and keeps numericals.
+    Returns:
+      node_feats: (num_nodes, F_n) array or None
+      edge_feats_dict: dict of (u, v) -> array of shape (F_e,) or None
+    """
+    node_str_cats = defaultdict(set)
+    for n in G.nodes():
+        for k, v in G.nodes[n].items():
+            if isinstance(v, str):
+                node_str_cats[k].add(v)
+
+    node_str_cats = {k: sorted(list(v)) for k, v in node_str_cats.items()}
+    global_node_features = []
+    num_nodes = len(node_to_idx)
+
+    for n in G.nodes():
+        idx = node_to_idx[n]
+        vec = []
+        for k, v in G.nodes[n].items():
+            if k == "hyperbolic_embedding":
+                continue
+            if isinstance(v, str) and k in node_str_cats:
+                onehot = [0.0] * len(node_str_cats[k])
+                onehot[node_str_cats[k].index(v)] = 1.0
+                vec.extend(onehot)
+            elif isinstance(v, (int, float)):
+                vec.append(float(v))
+            elif isinstance(v, (list, tuple, np.ndarray)):
+                vec.extend([float(x) for x in v])
+        global_node_features.append((idx, vec))
+
+    global_node_features.sort(key=lambda x: x[0])
+    max_len = (
+        max([len(v) for _, v in global_node_features]) if global_node_features else 0
+    )
+    if max_len == 0:
+        node_feats = None
+    else:
+        node_feats = np.zeros((num_nodes, max_len), dtype=np.float32)
+        for idx, vec in global_node_features:
+            node_feats[idx, : len(vec)] = vec
+
+    # Edge features
+    edge_str_cats = defaultdict(set)
+    is_multigraph = G.is_multigraph()
+
+    edge_data_list = []
+    if is_multigraph:
+        for u, v, k, d in G.edges(keys=True, data=True):
+            edge_data_list.append((u, v, d))
+    else:
+        for u, v, d in G.edges(data=True):
+            edge_data_list.append((u, v, d))
+
+    for u, v, d in edge_data_list:
+        for k, val in d.items():
+            if isinstance(val, str):
+                edge_str_cats[k].add(val)
+
+    edge_str_cats = {k: sorted(list(v)) for k, v in edge_str_cats.items()}
+
+    edge_feats_dict = {}
+    max_e_len = 0
+    for u, v, d in edge_data_list:
+        vec = []
+        for k, val in d.items():
+            if isinstance(val, str) and k in edge_str_cats:
+                onehot = [0.0] * len(edge_str_cats[k])
+                onehot[edge_str_cats[k].index(val)] = 1.0
+                vec.extend(onehot)
+            elif isinstance(val, (int, float)):
+                vec.append(float(val))
+            elif isinstance(val, (list, tuple, np.ndarray)):
+                vec.extend([float(x) for x in val])
+
+        # In a directed graph with bidrectional sharing or multiple edge features
+        # we just overwrite with the latest edge if multigraph for simplicity in demo
+        idx_u = node_to_idx[u]
+        idx_v = node_to_idx[v]
+        edge_feats_dict[(idx_u, idx_v)] = vec
+        if len(vec) > max_e_len:
+            max_e_len = len(vec)
+
+    if max_e_len > 0:
+        for k, vec in edge_feats_dict.items():
+            padded = np.zeros(max_e_len, dtype=np.float32)
+            padded[: len(vec)] = vec
+            edge_feats_dict[k] = padded
+    else:
+        edge_feats_dict = None
+
+    return node_feats, edge_feats_dict
+
+
 def build_generalized_negative_matrix(
     num_nodes, edges, markov_blankets, is_directed=False
 ):

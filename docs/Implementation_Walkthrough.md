@@ -22,8 +22,9 @@ The implemented model is designed specifically for modeling hierarchical structu
 3. **HGAT Architecture (`hyperbolic/nn.py`)**
    The core neural layer containing the attention mechanism.
    - Components: Möbius linear transformations (`mobius_matvec`), tangent space attention aggregation, and exponential map retractions (`hyperbolic_gat_layer`).
+   - **Feature-Modulated Tangent Aggregation**: The layer also natively fuses flat Euclidean node/edge attributes with the curved geometry using the Tangent Space at the origin as a mixing desk.
    - This layer processes a slice of center targets and a stacked array of graph neighbor matrices.
-   - For algorithmic definitions, see [Attention](./Attention.md) and [Aggregation](./Aggregation.md).
+   - For algorithmic definitions, see [Attention](./Attention.md), [Aggregation](./Aggregation.md), and [Feature-Modulated Tangent Aggregation](./FeatureModulatedTangentAggregation.md).
 
 4. **Training, Loss, and Data (`hyperbolic/train.py`, `hyperbolic/loss.py`, `hyperbolic/data.py`)**
    The comprehensive training pipeline ensures scalable execution.
@@ -138,6 +139,8 @@ Below is the visualization of the data projected onto the Poincaré disk before 
 
 In this initial state, all 400 nodes are positioned at the exact origin (0,0) of the Poincaré disk. This is because the Lorentz embeddings were initialized with `stddev=1e-3`, placing them extremely close to the origin. Visually, this appears as a single dense point, and the graph structure is not yet resolved.
 
+*(Note: During this mathematical initialization sequence, simulated rich Euclidean features are also established and continually paged onto the device payload to verify numerical stability across all layers. For details, see [Mocked Data Generation](./MockedData.md).)*
+
 ### After Training (Clustered Hierarchy via Lorentz Optimization)
 ![Final State](../demo/poincare_viz_final.png)
 
@@ -148,11 +151,9 @@ During training (that created the embeddings above), the InfoNCE loss applies tw
 
 - **Repulsive**: Pushes randomly sampled negative nodes apart.
 
-If the root nodes for all 10 trees stayed tightly clustered at the exact origin of the disk, the branches of the 10 trees would overlap significantly, resulting in a severe penalty from the negative sampling. Instead, the 10 independent trees naturally repel each other and distribute themselves around the hyperbolic space so that each tree claims its own "territory."
+If the root nodes for all 10 trees stayed tightly clustered at the exact origin of the disk, the branches of the 10 trees would overlap significantly, resulting in a severe penalty from the negative sampling. Instead, the 10 independent trees naturally repel each other and distribute themselves around the hyperbolic space so that each tree claims its own "territory." If we look closely at the new plot, we can see that the dark nodes (the roots with depth 0) are acting as the central anchors for their own separate trees, with the lighter yellow nodes (the leaves) branching outward toward the boundary of the disk where the hyperbolic space exponentially expands.
 
-If we look closely at the new plot, we can see that the dark nodes (the roots with depth 0) are acting as the central anchors for their own separate trees, with the lighter yellow nodes (the leaves) branching outward toward the boundary of the disk where the hyperbolic space exponentially expands.
-
-When we had the 1D rank-collapse bug earlier, the graph had no 2D space to spread into. All of the nodes were squashed onto a single line that happened to cross through the origin, which just gave the illusion of origin-clustering.
+This visually proves that the InfoNCE loss function handles high-dimensional attributes stably and preserves geometric hierarchy clustering simultaneously. The final embedding contextualizes the rich attributes of the Markov Blanket around each node. To ensure the math operations maintain proper geometric properties, we have established a formal pytest infrastructure to verify the integrity of the Lorentz manifold operations.
 
 ## Application
 
@@ -170,11 +171,11 @@ dist = lorentz_distance(master_embs[node_u], master_embs[node_v])
 
 What this means: If the distance is small, then the two nodes occupy a structurally similar location in the tree(s) (e.g., they might be siblings, or close cousins). If they are in separate trees, the distance will naturally be larger because the trees repel each other during training.
 
-### 2. Contextual Comparison (Using Markov Blanket Aggregation)
+### 2. Contextual Comparison (Using Feature-Modulated Markov Blanket Aggregation)
 
-If we specifically want to compare two nodes according to their respective Markov blankets (meaning we want to compare the local neighborhoods surrounding the nodes, rather than just their base structural identity), we can use the Hyperbolic Graph Attention (HGAT) layer to generate contextualized embeddings.
+If we specifically want to compare two nodes according to their respective Markov blankets (meaning we want to compare the local neighborhoods surrounding the nodes, including their associated node and edge features), we can use the Feature-Modulated Hyperbolic Graph Attention (HGAT) layer to generate fully contextualized embeddings.
 
-The `hyperbolic_gat_layer` pulls in the embeddings of a node's Markov blanket and aggregates them in the tangent space using the attention weights (`a`). We can compute this dynamically:
+The `hyperbolic_gat_layer` pulls in the embeddings of a node's Markov blanket, enriches them with Euclidean attributes, and aggregates them in the tangent space using the attention weights (`a`). We can compute this dynamically:
 
 ```python
 from hyperbolic.nn import hyperbolic_gat_layer

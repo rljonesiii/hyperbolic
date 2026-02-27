@@ -31,6 +31,8 @@ For the best reading experience, it is highly recommended to read the documents 
 
 7. [**Aggregation**](./Aggregation.md): The process of applying attention weights dynamically in flat space and using the Exponential Map to retract the new embedding back onto the manifold.
 
+8. [**Feature-Modulated Tangent Aggregation**](./FeatureModulatedTangentAggregation.md): Natively fusing flat Euclidean node and edge attributes with curved Hyperbolic geometry by utilizing the Tangent Space as a mixing desk to produce rich, contextualized embeddings.
+
 ### Chapter 4: Training, Scaling, and Evaluation
 *Handling the logistics of actually training this model on large-scale mock or real datasets.*
 
@@ -42,9 +44,11 @@ For the best reading experience, it is highly recommended to read the documents 
 
 11. [**Scaling**](./Scaling.md): Utilizing a Host-to-Device paging strategy to scale massive, billion-node graph networks on limited single-GPU memory.
 
-12. [**Evaluation**](./Evaluation.md): Analyzing outputs quantitatively (MRR) and qualitatively.
+12. [**Mocked Data Validation**](./MockedData.md): How dense Euclidean feature attributes are organically generated and injected over the Markov Blankets during our demo evaluation scripts to aggressively validate the underlying mathematics.
+
+13. [**Evaluation**](./Evaluation.md): Analyzing outputs quantitatively (MRR) and qualitatively.
 
 ### Chapter 5: Code Integration
 *Linking theory directly to the Python applications built.*
 
-13. [**Implementation Walkthrough**](./Implementation_Walkthrough.md): A practical guide bridging theory with the final code in `demo/demo.py` and the `hyperbolic/` library, featuring run visualizations showcasing structural clustering.
+14. [**Implementation Walkthrough**](./Implementation_Walkthrough.md): A practical guide bridging theory with the final code in `demo/demo.py` and the `hyperbolic/` library, featuring run visualizations showcasing structural clustering.

@@ -7,6 +7,7 @@ from .data import (
     parse_networkx_graph,
     build_generalized_negative_matrix,
     batch_sample_hard_negatives,
+    encode_graph_features,
 )
 from .optim import init_hyperbolic_weights, riemannian_adam_init
 from .train import train_step_single_gpu
@@ -32,6 +33,11 @@ class HyperbolicEngine:
         self.idx_to_node = {idx: node for node, idx in self.node_to_idx.items()}
         self.edges = edges
 
+        # Extract and encode categorical/numeric node and edge features
+        self.node_features, edge_features_dict = encode_graph_features(
+            G, self.node_to_idx
+        )
+
         is_directed = G.is_directed()
 
         print("Building Generalized Negative Sampling Matrix...")
@@ -49,25 +55,64 @@ class HyperbolicEngine:
         m_state = opt_state.m
         v_state = opt_state.v
 
-        # Init HGAT
-        self.key, subkeyW, subkeyA = jax.random.split(self.key, 3)
-        W = jax.random.normal(subkeyW, (self.spatial_dim, self.spatial_dim)) * 0.1
-        a = jax.random.normal(subkeyA, (2 * self.spatial_dim,)) * 0.1
+        # Determine feature dimensions
+        F_n = self.node_features.shape[-1] if self.node_features is not None else 0
 
-        hgat_params = (W, a)
+        # We find F_e by looking at the first valid edge feature, if available
+        F_e = 0
+        if edge_features_dict is not None and len(edge_features_dict) > 0:
+            F_e = len(list(edge_features_dict.values())[0])
+
+        # Init HGAT W and a
+        self.key, subkeyW, subkeyA, subkeyWM = jax.random.split(self.key, 4)
+        W = jax.random.normal(subkeyW, (self.spatial_dim, self.spatial_dim)) * 0.1
+
+        a_dim = 2 * self.spatial_dim
+        if F_n > 0:
+            a_dim += 2 * F_n
+        if F_e > 0:
+            a_dim += F_e
+        a = jax.random.normal(subkeyA, (a_dim,)) * 0.1
+
+        hgat_params = {"W": W, "a": a}
         hgat_m = {"W": jnp.zeros_like(W), "a": jnp.zeros_like(a)}
         hgat_v = {"W": jnp.zeros_like(W), "a": jnp.zeros_like(a)}
 
+        # If we have features, init W_message to project back down to Ambient Lorentz Dim
+        if F_n > 0 or F_e > 0:
+            D = self.spatial_dim + 1
+            msg_dim = D + F_n + F_e
+            W_message = jax.random.normal(subkeyWM, (msg_dim, D)) * 0.1
+            hgat_params["W_message"] = W_message
+            hgat_m["W_message"] = jnp.zeros_like(W_message)
+            hgat_v["W_message"] = jnp.zeros_like(W_message)
+
         # Prep positive masks
-        max_pos = max([len(b) for b in markov_blankets.values()])
+        max_pos = (
+            max([len(b) for b in markov_blankets.values()])
+            if len(markov_blankets) > 0
+            else 1
+        )
         pos_padded = np.zeros((num_nodes, max_pos), dtype=np.int32)
         pos_mask = np.zeros((num_nodes, max_pos), dtype=np.float32)
+
+        pos_edge_padded = None
+        if F_e > 0:
+            pos_edge_padded = np.zeros((num_nodes, max_pos, F_e), dtype=np.float32)
 
         for i in range(num_nodes):
             b = markov_blankets[i]
             if len(b) > 0:
                 pos_padded[i, : len(b)] = b
                 pos_mask[i, : len(b)] = 1.0
+
+                # Align edge features directly between target (i) and neighbor (pos)
+                if pos_edge_padded is not None:
+                    for j_idx, pos_idx in enumerate(b):
+                        if (i, pos_idx) in edge_features_dict:
+                            pos_edge_padded[i, j_idx] = edge_features_dict[(i, pos_idx)]
+                        elif (pos_idx, i) in edge_features_dict:
+                            pos_edge_padded[i, j_idx] = edge_features_dict[(pos_idx, i)]
             else:
                 pos_padded[i, 0] = i  # fallback
                 pos_mask[i, 0] = 1.0
@@ -92,12 +137,29 @@ class HyperbolicEngine:
                 batch_pos = pos_padded[batch_targets]
                 b_pos_mask = pos_mask[batch_targets]
 
+                # Fetch features
+                b_target_feats = None
+                b_pos_feats = None
+                b_pos_edge_feats = None
+
+                if self.node_features is not None:
+                    b_target_feats = self.node_features[batch_targets]
+                    b_pos_feats = self.node_features[batch_pos]
+
+                if pos_edge_padded is not None:
+                    b_pos_edge_feats = pos_edge_padded[batch_targets]
+
                 batch_indices = {
                     "targets": jnp.array(batch_targets),
                     "positives": jnp.array(batch_pos),
                     "negatives": jnp.array(batch_negs),
                     "pos_mask": jnp.array(b_pos_mask),
                 }
+                if b_target_feats is not None:
+                    batch_indices["target_features"] = jnp.array(b_target_feats)
+                    batch_indices["pos_features"] = jnp.array(b_pos_feats)
+                if b_pos_edge_feats is not None:
+                    batch_indices["pos_edge_features"] = jnp.array(b_pos_edge_feats)
 
                 step_count += 1
                 (

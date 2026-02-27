@@ -31,17 +31,41 @@ except:
 
 
 @jax.jit
-def batch_loss_fn(target_embs, pos_embs, neg_embs, W, a, pos_mask):
+def batch_loss_fn(
+    target_embs,
+    pos_embs,
+    neg_embs,
+    W,
+    a,
+    W_message,
+    pos_mask,
+    target_features=None,
+    pos_features=None,
+    pos_edge_features=None,
+):
     """
     Computes loss for an extracted batch.
     target_embs: (B, D)
     pos_embs: (B, max_pos, D)
     neg_embs: (B, num_negs, D)
     pos_mask: (B, max_pos) integer mask 1/0
+    target_features: (B, F_n)
+    pos_features: (B, max_pos, F_n)
+    pos_edge_features: (B, max_pos, F_e)
     """
     # 1. HGAT Aggregation for Positive pairs (Markov Blanket context)
     # The targets are embedded using context from their true neighbors
-    updated_targets = hyperbolic_gat_layer(target_embs, pos_embs, W, a, pos_mask)
+    updated_targets = hyperbolic_gat_layer(
+        target_embs,
+        pos_embs,
+        W,
+        a,
+        pos_mask,
+        node_features_x=target_features,
+        node_features_y=pos_features,
+        edge_features=pos_edge_features,
+        W_message=W_message,
+    )
 
     # 2. To avoid needing an HGAT mask for negatives for simplicity (we'd have to sample full neighborhoods for negatives)
     # we just compute InfoNCE loss between the refined target context and the raw embeddings of neighbors/negatives.
@@ -100,7 +124,7 @@ def batch_loss_fn(target_embs, pos_embs, neg_embs, W, a, pos_mask):
 
 
 # Get the gradient function for updating embeddings and HGAT weights
-grad_fn = jax.jit(jax.grad(batch_loss_fn, argnums=(0, 1, 2, 3, 4)))
+grad_fn = jax.jit(jax.grad(batch_loss_fn, argnums=(0, 1, 2, 3, 4, 5)))
 
 
 def apply_sparse_riemannian_adam_update(
@@ -211,13 +235,19 @@ def train_step_single_gpu(
     Host-to-Device Paging target training loop.
     Returns: updated master embeddings, optimizer states, hgat weights, loss
     """
-    W, a = hgat_params
+    W = hgat_params["W"]
+    a = hgat_params["a"]
+    W_message = hgat_params.get("W_message", None)
 
     # 1. Slice CPU tables
     target_slice = master_embs[batch_indices["targets"]]
     pos_slice = master_embs[batch_indices["positives"]]
     neg_slice = master_embs[batch_indices["negatives"]]
     pos_mask = batch_indices["pos_mask"]
+
+    target_feats = batch_indices.get("target_features", None)
+    pos_feats = batch_indices.get("pos_features", None)
+    pos_edge_feats = batch_indices.get("pos_edge_features", None)
 
     # 2. Push to GPU (or whatever primary device is)
     target_gpu = device_put(target_slice, gpu_device)
@@ -226,16 +256,45 @@ def train_step_single_gpu(
     pos_mask_gpu = device_put(pos_mask, gpu_device)
     W_gpu = device_put(W, gpu_device)
     a_gpu = device_put(a, gpu_device)
+    W_message_gpu = device_put(W_message, gpu_device) if W_message is not None else None
+
+    tf_gpu = device_put(target_feats, gpu_device) if target_feats is not None else None
+    pf_gpu = device_put(pos_feats, gpu_device) if pos_feats is not None else None
+    pef_gpu = (
+        device_put(pos_edge_feats, gpu_device) if pos_edge_feats is not None else None
+    )
 
     # 3. Compute loss and gradients
-    loss = batch_loss_fn(target_gpu, pos_gpu, neg_gpu, W_gpu, a_gpu, pos_mask_gpu)
-    grads = grad_fn(target_gpu, pos_gpu, neg_gpu, W_gpu, a_gpu, pos_mask_gpu)
+    loss = batch_loss_fn(
+        target_gpu,
+        pos_gpu,
+        neg_gpu,
+        W_gpu,
+        a_gpu,
+        W_message_gpu,
+        pos_mask_gpu,
+        tf_gpu,
+        pf_gpu,
+        pef_gpu,
+    )
+    grads = grad_fn(
+        target_gpu,
+        pos_gpu,
+        neg_gpu,
+        W_gpu,
+        a_gpu,
+        W_message_gpu,
+        pos_mask_gpu,
+        tf_gpu,
+        pf_gpu,
+        pef_gpu,
+    )
 
     # 4. Pull gradients back to CPU
     grads_cpu = device_put(grads, cpu_device)
 
     # grads[0, 1, 2] are for embedding targets, pos, negs
-    # grads[3, 4] are Euclidean gradients for W and a
+    # grads[3, 4, 5] are Euclidean gradients for W, a, W_message
 
     # 5. Sparse Riemannian Adam for Embeddings (on CPU)
     master_embs, m_state, v_state = apply_sparse_riemannian_adam_update(
@@ -251,8 +310,16 @@ def train_step_single_gpu(
         a, grads_cpu[4], hgat_m["a"], hgat_v["a"], count
     )
 
-    hgat_params_new = (W_new, a_new)
+    hgat_params_new = {"W": W_new, "a": a_new}
     hgat_m_new = {"W": hgat_m_W, "a": hgat_m_a}
     hgat_v_new = {"W": hgat_v_W, "a": hgat_v_a}
+
+    if W_message is not None:
+        Wm_new, hgat_m_Wm, hgat_v_Wm = apply_euclidean_adam_update(
+            W_message, grads_cpu[5], hgat_m["W_message"], hgat_v["W_message"], count
+        )
+        hgat_params_new["W_message"] = Wm_new
+        hgat_m_new["W_message"] = hgat_m_Wm
+        hgat_v_new["W_message"] = hgat_v_Wm
 
     return master_embs, m_state, v_state, hgat_params_new, hgat_m_new, hgat_v_new, loss

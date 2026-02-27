@@ -42,7 +42,7 @@ def test_rank_collapse_prevention():
     W = jnp.eye(spatial_dim)
     a = jax.random.normal(subkeyA, (2 * spatial_dim,)) * 0.1
 
-    hgat_params = (W, a)
+    hgat_params = {"W": W, "a": a}
     hgat_m = {"W": jnp.zeros_like(W), "a": jnp.zeros_like(a)}
     hgat_v = {"W": jnp.zeros_like(W), "a": jnp.zeros_like(a)}
 

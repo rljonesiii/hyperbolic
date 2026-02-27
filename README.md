@@ -34,18 +34,26 @@ The main dependencies are:
    uv sync
    ```
 
-## Running the Demo
+## Running the Demos
 
-The repository includes an end-to-end demonstration script that synthesizes hierarchical data, initializes the network, trains on a single GPU using host-to-device paging, and renders the before/after visualizations.
+The repository includes demonstration scripts to showcase the capabilities of the engine.
 
-To run the full pipeline, navigate to the `demo` directory and run the script:
+### End-to-End Demo (`demo.py`)
+This script synthesizes hierarchical data, initializes the network, trains on a single GPU using host-to-device paging, and renders the before/after visualizations.
+
+### API Demo (`api_demo.py`)
+This script demonstrates the end-to-end usage of the `HyperbolicEngine` API on a standard NetworkX graph. It proves that the engine can consume an arbitrary string-labeled graph, automatically extract node relationships (Markov Blankets) without explicit hierarchical tags, and map these nodes onto the Lorentz Manifold. It also shows how to query the continuous space using Riemannian distance to find structurally homologous nodes.
+
+To run the demos, navigate to the `demo` directory:
 
 ```bash
 cd demo
+uv run api_demo.py
 uv run demo.py
 ```
 
-This will output the training logs and save the final clustered embedding representation to `demo/poincare_viz_final.png`.
+Running `api_demo.py` will save its visualization to `demo/api_poincare_viz.png`.
+Running `demo.py` will output the training logs and save the final clustered embedding representation to `demo/poincare_viz_final.png`.
 
 ## Running Tests
 
