@@ -47,6 +47,14 @@ uv run demo.py
 
 This will output the training logs and save the final clustered embedding representation to `demo/poincare_viz_final.png`.
 
+## Running Tests
+
+To ensure the core geometric functions maintain mathematical correctness and testing against rank-collapse bugs, you can run the provided Pytest suite:
+
+```bash
+uv run pytest
+```
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

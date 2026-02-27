@@ -193,3 +193,16 @@ What this means: This measures how similar the surrounding environments of the t
 
 In summary, the embeddings and the mathematical tools included in the package (`lorentz_distance`, `minkowski_inner_product`, and the `hyperbolic_gat_layer`) natively give us the ability to perform these comparisons along the hyperbolic geodesics.
 
+## Pytest Infrastructure & Regression Tests
+
+To ensure that the math operations maintain proper geometric properties and that the Rank Collapse bug does not resurface, we have established a formal `pytest` infrastructure.
+
+1. **Rank Collapse Test (`tests/test_rank_collapse.py`)**: Migrated the `test_w.py` validation script into an automated pytest that executes a minimal forward training loop and explicitly `asserts` that the singular values of the spatial weights remain > 1.0.
+2. **Math Regression Tests (`tests/test_math.py`)**:
+   - `test_lorentz_exponential_map_origin`: Confirms the zero-vector correctly maps to the origin pole `(1, 0, 0)` and non-zero vectors map to points fulfilling the Minkowski bound `<-1.0>`.
+   - `test_minkowski_inner_product`: Verifies arithmetic calculations for Lorentzian geometry.
+   - `test_lorentz_distance`: Asserts the distance function is strictly positive, symmetric, and calculates 0 distance over the same points.
+3. **NN Regression Tests (`tests/test_nn.py`)**:
+   - `test_hyperbolic_gat_layer`: Verifies that an unmasked forward pass through the attention mechanism succeeds globally without producing `NaN`s, and returns all vectors constrained to the Lorentz manifold.
+
+You can verify all systems are green by running `uv run pytest tests/` in the `hyperbolic/` project root!

@@ -59,7 +59,7 @@ def main():
     hgat_v = {"W": jnp.zeros_like(W), "a": jnp.zeros_like(a)}
 
     print("4. Training using Host-to-Device Paging Sparse Updates...")
-    num_epochs = 300
+    num_epochs = 400
     batch_size = 64
     num_negs = 10
 

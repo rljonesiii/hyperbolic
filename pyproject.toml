@@ -12,3 +12,8 @@ dependencies = [
     "networkx>=3.6.1",
     "scipy>=1.17.1",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
