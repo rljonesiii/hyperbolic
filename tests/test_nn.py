@@ -1,6 +1,5 @@
 import jax
 import jax.numpy as jnp
-import pytest
 
 from hyperbolic.nn import hyperbolic_gat_layer
 from hyperbolic.optim import init_hyperbolic_weights

@@ -1,32 +1,29 @@
 import jax
 import jax.numpy as jnp
 from jax import device_put
-import numpy as np
 
 from hyperbolic.math import (
     lorentz_exponential_map,
     minkowski_inner_product,
     project_to_tangent_space,
-    parallel_transport,
 )
 from hyperbolic.nn import hyperbolic_gat_layer
-from hyperbolic.loss import hyperbolic_infonce_loss
 from hyperbolic.math import lorentz_distance
 
 # Force JAX to allocate CPU/GPU devices
 try:
     cpu_device = jax.devices("cpu")[0]
-except:
+except Exception:
     cpu_device = jax.devices()[0]  # Fallback if standard JAX config
 
 try:
     # Use GPU if available (Metal also shows as GPU sometimes depending on Jax-Metal),
     # otherwise fallback to default
     gpu_device = jax.devices("gpu")[0]
-except:
+except Exception:
     try:
         gpu_device = jax.devices("metal")[0]
-    except:
+    except Exception:
         gpu_device = jax.devices()[0]
 
 
@@ -143,7 +140,6 @@ def apply_sparse_riemannian_adam_update(
     Applies Riemannian Adam using only the extracted batch gradients without pulling the entire graph to GPU.
     We just perform the operations on the small sliced subset and scatter them back.
     """
-    target_idx = batch_indices["targets"]
 
     # We only update the target nodes for simplicity of this demo,
     # or we can flatten target, pos, neg and update all unique indices.

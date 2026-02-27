@@ -116,7 +116,6 @@ def parse_networkx_graph(G):
     Parses a general NetworkX graph (like MultiDiGraph or MultiGraph).
     Returns basic graph structures mapped to integer indices.
     """
-    import networkx as nx
 
     # Map original node IDs to clean integers 0...N-1
     node_list = list(G.nodes())
