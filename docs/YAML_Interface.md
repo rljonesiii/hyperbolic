@@ -37,3 +37,13 @@ rows:
       - name: "Child Node"
         brlevel: "1.1"
 ```
+
+## End-to-End Walkthrough
+
+The `yaml_graph.py` parser is directly integrated into the main `api_demo.py` pipeline (utilizing the mock taxonomy found at `tests/data/test_generic_tree.yaml`). This provides users the ability to dynamically write hierarchical taxonomy files (like an organizational chart or infrastructure stack), parse them effortlessly, and instantly feed them into the `HyperbolicEngine` for manifold training.
+
+The API Demo will take the parsed MultiDiGraph, automatically extract node relationships (Markov Blankets) via localized geometry without relying on explicit depth parameters, calculate hard negative contrasts across structural distances, and perform a host-to-device distributed stochastic Adam run across the Lorentz geometric plane to cluster taxonomically similar components together. 
+
+The `api_demo.py` outputs the final clustered projection to the Poincaré unit disk as seen here, natively grouping elements like "Network" (such as `1.0`, API Gateway) and "Cache" components visually based purely on their structural adjacency configurations parsed from the original string YAML document.
+
+![Corporate Topology mapped to Poincaré Embeddings Space](./api_poincare_viz.png)

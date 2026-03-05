@@ -174,6 +174,13 @@ def encode_graph_features(G, node_to_idx):
         for k, v in G.nodes[n].items():
             if isinstance(v, str):
                 node_str_cats[k].add(v)
+            elif (
+                isinstance(v, (list, tuple, np.ndarray))
+                and len(v) > 0
+                and isinstance(v[0], str)
+            ):
+                for item in v:
+                    node_str_cats[k].add(str(item))
 
     node_str_cats = {k: sorted(list(v)) for k, v in node_str_cats.items()}
     global_node_features = []
@@ -185,14 +192,35 @@ def encode_graph_features(G, node_to_idx):
         for k, v in G.nodes[n].items():
             if k == "hyperbolic_embedding":
                 continue
+
+            # Map single strings to their one-hot index
             if isinstance(v, str) and k in node_str_cats:
                 onehot = [0.0] * len(node_str_cats[k])
                 onehot[node_str_cats[k].index(v)] = 1.0
                 vec.extend(onehot)
+            # Map lists of strings to multi-hot combinations
+            elif (
+                isinstance(v, (list, tuple, np.ndarray))
+                and len(v) > 0
+                and isinstance(v[0], str)
+                and k in node_str_cats
+            ):
+                multihot = [0.0] * len(node_str_cats[k])
+                for item in v:
+                    if str(item) in node_str_cats[k]:
+                        multihot[node_str_cats[k].index(str(item))] = 1.0
+                vec.extend(multihot)
+            # Map native floats
             elif isinstance(v, (int, float)):
                 vec.append(float(v))
-            elif isinstance(v, (list, tuple, np.ndarray)):
+            # Map native arrays of numbers
+            elif (
+                isinstance(v, (list, tuple, np.ndarray))
+                and len(v) > 0
+                and isinstance(v[0], (int, float))
+            ):
                 vec.extend([float(x) for x in v])
+
         global_node_features.append((idx, vec))
 
     global_node_features.sort(key=lambda x: x[0])
