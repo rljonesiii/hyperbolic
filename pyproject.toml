@@ -14,6 +14,7 @@ dependencies = [
     "jaxlib>=0.9.0.1",
     "matplotlib>=3.10.8",
     "networkx>=3.6.1",
+    "pyyaml>=6.0",
     "scipy>=1.17.1",
 ]
 
@@ -22,6 +23,8 @@ dev = [
     "pytest>=9.0.2",
     "ruff>=0.9.0",
     "mypy>=1.15.0",
+    "types-pyyaml>=6.0.12.20250915",
+    "pygraphviz>=1.14",
 ]
 
 [tool.ruff]

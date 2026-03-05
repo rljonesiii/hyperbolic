@@ -32,7 +32,7 @@ def init_hyperbolic_weights(key, shape, stddev=1e-3):
 class RiemannianAdamState(NamedTuple):
     m: jax.Array
     v: jax.Array
-    count: int
+    step: int
     prev_params: jax.Array
 
 
@@ -41,7 +41,7 @@ def riemannian_adam_init(params):
     return RiemannianAdamState(
         m=jnp.zeros_like(params),
         v=jnp.zeros((params.shape[0],)),
-        count=0,
+        step=0,
         prev_params=params,
     )
 
@@ -58,7 +58,7 @@ def riemannian_adam_step(
     """
     Performs one step of Riemannian Adam.
     """
-    count = state.count + 1
+    step = state.step + 1
 
     # 1. Project Euclidean grad to Riemannian grad on the Tangent Space
     # Convert Euclidean gradient to Minkowski gradient
@@ -80,16 +80,14 @@ def riemannian_adam_step(
     v_new = beta2 * state.v + (1 - beta2) * grad_norm_sq
 
     # 5. Compute the tangent step vector (with bias corrections)
-    m_hat = m_new / (1 - beta1**count)
-    v_hat = v_new / (1 - beta2**count)
+    m_hat = m_new / (1 - beta1**step)
+    v_hat = v_new / (1 - beta2**step)
     tangent_step = -learning_rate * (m_hat / (jnp.sqrt(v_hat)[..., None] + epsilon))
 
     # 6. Apply the Exponential Map to update the parameters
     new_params = lorentz_exponential_map(params, tangent_step)
 
     # 7. Create new state
-    new_state = RiemannianAdamState(
-        m=m_new, v=v_new, count=count, prev_params=new_params
-    )
+    new_state = RiemannianAdamState(m=m_new, v=v_new, step=step, prev_params=new_params)
 
     return new_params, new_state

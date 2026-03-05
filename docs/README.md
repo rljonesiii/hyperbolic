@@ -52,3 +52,5 @@ For the best reading experience, it is highly recommended to read the documents 
 *Linking theory directly to the Python applications built.*
 
 14. [**Implementation Walkthrough**](./Implementation_Walkthrough.md): A practical guide bridging theory with the final code in `demo/demo.py` and the `hyperbolic/` library, featuring run visualizations showcasing structural clustering.
+
+15. [**YAML Interface**](./YAML_Interface.md): Documentation covering the `yaml_graph.py` parsing utilities mapping deeply nested string architectures into topological NetworkX graphs for easy manifold loading.

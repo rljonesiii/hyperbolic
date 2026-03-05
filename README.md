@@ -42,7 +42,7 @@ The repository includes demonstration scripts to showcase the capabilities of th
 This script synthesizes hierarchical data, initializes the network, trains on a single GPU using host-to-device paging, and renders the before/after visualizations.
 
 ### API Demo (`api_demo.py`)
-This script demonstrates the end-to-end usage of the `HyperbolicEngine` API on a standard NetworkX graph. It proves that the engine can consume an arbitrary string-labeled graph, automatically extract node relationships (Markov Blankets) without explicit hierarchical tags, and map these nodes onto the Lorentz Manifold. It also shows how to query the continuous space using Riemannian distance to find structurally homologous nodes.
+This script demonstrates the end-to-end usage of the `HyperbolicEngine` API on a standard NetworkX graph. It proves that the engine can consume an arbitrary string-labeled graph, automatically extract node relationships (Markov Blankets) without explicit hierarchical tags, and map these nodes onto the Lorentz Manifold. It also shows how to query the continuous space using Riemannian distance to find structurally homologous nodes. To see how nested hierarchical string architectures (like org-charts) can be parsed directly into these NetworkX graphs dynamically, see the [YAML Interface Documentation](./docs/YAML_Interface.md).
 
 To run the demos, navigate to the `demo` directory:
 

@@ -1,0 +1,50 @@
+metadata:
+  title: "Corporate Technical Architecture"
+  version: "3.2"
+  arch_type: "Microservices"
+  tags:
+    - active
+    - cloud-native
+  author: "CTO Office"
+rows:
+  - name: "API Gateway"
+    fulllevel: "1.0"
+    brlevel: "1"
+    description: "Main entry point for all external traffic"
+    component_type: "network"
+    criticality: "high"
+    contains:
+      - name: "Authentication Service"
+        fulllevel: "1.1"
+        brlevel: "1.1"
+        description: "Handles JWT validation and OAuth"
+        latency_slo: 50
+        contains:
+          - name: "User DB"
+            # Intentionally missing fulllevel/brlevel to test UUID fallback
+            description: "Postgres database for user profiles"
+            storage_type: "relational"
+            capacity: "500GB"
+      - name: "Rate Limiter"
+        fulllevel: "1.2"
+        description: "Redis-based request throttling"
+        component_type: "cache"
+  - name: "Core Services"
+    fulllevel: "2.0"
+    brlevel: "2"
+    contains:
+      - name: "Payment Processor"
+        fulllevel: "2.1"
+        description: "Handles Stripe integrations"
+        criticality: "critical"
+        regulatory_compliance: ["PCI-DSS", "GDPR"]
+      - name: "Notification Engine"
+        # Duplicate fulllevel to test salt generation in duplicate ID handling
+        fulllevel: "2.1"
+        description: "Email, SMS, and Push notifications"
+        latency_slo: 200
+  - name: "Data Warehouse"
+    fulllevel: "3.0"
+    technology: "Snowflake"
+    # Empty contains array to test edge cases
+    contains: []
