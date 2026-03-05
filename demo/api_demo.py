@@ -4,7 +4,6 @@ import os
 # Ensure we can import the hyperbolic module from the root
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import networkx as nx
 from hyperbolic.api import HyperbolicEngine
 
 
