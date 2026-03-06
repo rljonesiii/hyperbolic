@@ -13,6 +13,15 @@ The main dependencies are:
 - `jax` and `jaxlib` for hardware-accelerated, differentiable tensor operations.
 - `matplotlib` for stereographic projection visualizations to the Poincaré disk.
 - `scipy` for logging and stable metric computations.
+- `networkx` and `pyyaml` for structural graph processing and configuration parsing.
+
+### System Dependencies
+
+Before syncing the Python environment, ensure you have the following system-level dependencies installed. These are required by certain development packages (like `pygraphviz`) and are not automatically installed via `uv sync`:
+
+- **Graphviz**: Required for graph layout computing and rendering.
+  - **macOS (Homebrew)**: `brew install graphviz`
+  - **Ubuntu/Debian**: `sudo apt-get install graphviz libgraphviz-dev`
 
 ### Setup Instructions
 
